@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEURAL_APEX // SOURCE_CODE_ALPHA</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=JetBrains+Mono:wght@200;400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/TextPlugin.min.js"></script>
+    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.0.94/build/spline-viewer.js"></script>
+
+    <style>
+        :root {
+            --neon-blue: #00f5ff;
+            --neon-pink: #ff0055;
+            --gold: #ffcf4b;
+            --bg-black: #020205;
+            --panel-bg: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; }
+
+        body {
+            background: var(--bg-black);
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+            height: 100vh;
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        /* --- BACKGROUND NEURAL MESH --- */
+        #neural-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; opacity: 0.4; pointer-events: none;
+        }
+
+        /* --- THE 3D VOID --- */
+        .void-container {
+            position: fixed; inset: 0;
+            z-index: 2;
+            mix-blend-mode: screen;
+        }
+
+        /* --- HUD ELEMENTS (BENTO STYLE) --- */
+        .hud-layer {
+            position: relative; z-index: 10;
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: 100px 1fr 250px;
+            height: 100vh;
+            padding: 20px;
+            gap: 20px;
+            pointer-events: none;
+        }
+
+        .hud-layer > * { pointer-events: all; }
+
+        /* Glass Panel Styling */
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--border);
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .panel::before {
+            content: ""; position: absolute; top: 0; left: 0;
+            width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--neon-blue), transparent);
+            animation: scanline 3s infinite linear;
+        }
+
+        @keyframes scanline {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* --- SPECIFIC PANELS --- */
+        .logo-box {
+            grid-column: 1 / 2;
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        .logo-text {
+            font-family: 'Syncopate', sans-serif; font-size: 1.2rem;
+            letter-spacing: 5px; color: var(--neon-blue);
+        }
+
+        .stats-panel { grid-column: 3 / 4; font-size: 10px; line-height: 2; color: #888; }
+        .stats-panel span { color: var(--neon-pink); }
+
+        .center-display {
+            grid-column: 2 / 3; grid-row: 1 / 3;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+            padding-top: 50px;
+        }
+
+        .main-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 12vw; line-height: 0.8;
+            text-align: center; color: transparent;
+            -webkit-text-stroke: 1px rgba(255,255,255,0.1);
+            position: relative;
+        }
+
+        /* --- TERMINAL INTERFACE --- */
+        .terminal-panel {
+            grid-column: 1 / 4; grid-row: 3 / 4;
+            display: flex; flex-direction: column;
+            border-top: 2px solid var(--neon-blue);
+        }
+
+        #output {
+            flex: 1; overflow-y: auto; padding: 10px;
+            font-size: 13px; color: #aaa;
+        }
+
+        .input-line {
+            display: flex; align-items: center; gap: 15px;
+            background: rgba(0,0,0,0.5); padding: 15px;
+        }
+
+        .input-line span { color: var(--neon-blue); font-weight: bold; }
+        
+        input {
+            flex: 1; background: transparent; border: none;
+            color: white; font-family: 'JetBrains Mono'; font-size: 1.1rem;
+            outline: none;
+        }
+
+        /* --- CUSTOM CURSOR --- */
+        #aim {
+            width: 30px; height: 30px; border: 1px solid var(--neon-blue);
+            position: fixed; border-radius: 50%; pointer-events: none; z-index: 10000;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.1s;
+        }
+        #aim::after { content: "+"; color: var(--neon-pink); font-size: 10px; }
+
+        /* --- GLITCH EFFECTS --- */
+        .glitch { animation: glitch 0.3s cubic-bezier(.25,.46,.45,.94) both infinite; }
+        @keyframes glitch {
+            0% { transform: translate(0); text-shadow: 0 0 0 transparent; }
+            20% { transform: translate(-2px, 2px); text-shadow: 2px 0 var(--neon-pink); }
+            40% { transform: translate(-2px, -2px); text-shadow: -2px 0 var(--neon-blue); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+    </style>
+</head>
+<body id="core-body">
+
+    <div id="aim"></div>
+    <canvas id="neural-canvas"></canvas>
+
+    <div class="void-container">
+        <spline-viewer id="main-scene" url="https://prod.spline.design/J4zYI89M-qOidD58/scene.splinecode"></spline-viewer>
+    </div>
+
+    <div class="hud-layer">
+        <div class="panel logo-box">
+            <div style="width:15px; height:15px; background:var(--neon-blue); border-radius:50%"></div>
+            <div class="logo-text">NEURAL_APEX</div>
+        </div>
+
+        <div class="center-display">
+            <h1 class="main-title" id="glitch-target">VOID_OS</h1>
+            <p style="letter-spacing: 15px; font-size: 10px; opacity: 0.4;">KINETIC INTELLIGENCE SYSTEM</p>
+        </div>
+
+        <div class="panel stats-panel">
+            [ SYSTEM_OVERRIDE: <span>ACTIVE</span> ]<br>
+            [ LATENCY: <span id="ping">24</span>ms ]<br>
+            [ CORE_AUTH: LEVEL_7 ]<br>
+            [ ENCRYPTION: 1024_RSA ]
+        </div>
+
+        <div class="panel terminal-panel">
+            <div id="output">
+                <div>>> SECURE CONNECTION ESTABLISHED...</div>
+                <div>>> WELCOME TO THE APEX. TYPE <span style="color:var(--gold)">'HELLO'</span> TO INITIALIZE COMEDY_PROTOCOL.</div>
+            </div>
+            <div class="input-line">
+                <span>SYSTEM@USER_ROOT:~$</span>
+                <input type="text" id="shell-input" spellcheck="false" autofocus>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        gsap.registerPlugin(TextPlugin);
+
+        const canvas = document.getElementById('neural-canvas');
+        const ctx = canvas.getContext('2d');
+        const input = document.getElementById('shell-input');
+        const output = document.getElementById('output');
+        const aim = document.getElementById('aim');
+        const spline = document.getElementById('main-scene');
+
+        // --- 1. NEURAL MESH BACKGROUND ENGINE ---
+        let particles = [];
+        const mouse = { x: null, y: null, radius: 150 };
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+        window.dispatchEvent(new Event('resize'));
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+
+                // Mouse interaction
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx*dx + dy*dy);
+                if (distance < mouse.radius) {
+                    this.x -= dx/20;
+                    this.y -= dy/20;
+                }
+            }
+            draw() {
+                ctx.fillStyle = 'rgba(0, 245, 255, 0.5)';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function initMesh() {
+            particles = [];
+            for (let i = 0; i < 100; i++) particles.push(new Particle());
+        }
+
+        function animateMesh() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            // Connect lines
+            for (let a = 0; a < particles.length; a++) {
+                for (let b = a; b < particles.length; b++) {
+                    let dx = particles[a].x - particles[b].x;
+                    let dy = particles[a].y - particles[b].y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 100) {
+                        ctx.strokeStyle = `rgba(0, 245, 255, ${1 - dist/100})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(particles[a].x, particles[a].y);
+                        ctx.lineTo(particles[b].x, particles[b].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animateMesh);
+        }
+        initMesh();
+        animateMesh();
+
+        // --- 2. INTERACTION ENGINE ---
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            gsap.to(aim, { x: e.clientX - 15, y: e.clientY - 15, duration: 0.1 });
+        });
+
+        const jokes = [
+            "Why did the AI go on a diet? It had too many bytes.",
+            "I asked my AI: 'Do you love me?' It replied: 'I am a language model, but I can write 500 lines about why I can't.'",
+            "Hardware is what you hit. Software is what you curse at.",
+            "There are 10 types of people: those who understand binary, and those who don't.",
+            "An SEO expert walks into a bar, bars, pub, tavern, public house, Irish pub, drinks, beer.",
+            "My AI told me a joke so bad, I had to unplug the router to stop it from laughing.",
+            "What do you call an AI that is always right? A 'Tell-Me-The-Truth-Bot'."
+        ];
+
+        function addTerminalLine(txt, color = '#aaa') {
+            const line = document.createElement('div');
+            line.style.color = color;
+            line.style.marginBottom = '5px';
+            output.appendChild(line);
+            
+            // Typewriter effect
+            gsap.to(line, {
+                duration: 1,
+                text: ">> " + txt,
+                ease: "none"
+            });
+            
+            output.scrollTop = output.scrollHeight;
+        }
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const cmd = input.value.trim();
+                if (!cmd) return;
+
+                addTerminalLine(cmd.toUpperCase(), varName('--neon-pink'));
+                input.value = '';
+
+                // TRIGGER VISUAL CHAOS
+                processCommand(cmd.toLowerCase());
+            }
+        });
+
+        function processCommand(cmd) {
+            const target = document.getElementById('glitch-target');
+            
+            if (cmd.includes('hello') || cmd.includes('hi') || cmd.includes('joke')) {
+                // 1. Logic
+                const joke = jokes[Math.floor(Math.random() * jokes.length)];
+                setTimeout(() => addTerminalLine(joke, varName('--neon-blue')), 500);
+
+                // 2. Visual Glitch
+                target.classList.add('glitch');
+                gsap.to("#main-scene", { scale: 1.5, rotation: 360, duration: 0.5, yoyo: true, repeat: 1 });
+                gsap.to("body", { backgroundColor: "#110005", duration: 0.1, yoyo: true, repeat: 3 });
+                
+                setTimeout(() => target.classList.remove('glitch'), 1000);
+            } else {
+                addTerminalLine("UNKNOWN_VECTOR. INPUT 'HELLO' TO SYNC.", "#555");
+            }
+        }
+
+        function varName(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name);
+        }
+
+        // --- 3. HARDWARE MONITOR SPOOF ---
+        setInterval(() => {
+            document.getElementById('ping').innerText = Math.floor(Math.random() * 15) + 10;
+        }, 2000);
+
+    </script>
+</body>
+</html>
